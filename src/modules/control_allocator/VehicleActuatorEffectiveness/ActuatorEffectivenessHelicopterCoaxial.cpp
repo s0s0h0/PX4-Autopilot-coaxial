@@ -53,6 +53,17 @@ ActuatorEffectivenessHelicopterCoaxial::ActuatorEffectivenessHelicopterCoaxial(M
 	_param_handles.num_swash_plate_servos = param_find("CA_SP0_COUNT");
 	_param_handles.spoolup_time = param_find("COM_SPOOLUP_TIME");
 
+	for (int i = 0; i < NUM_CURVE_POINTS; ++i) {
+		char buffer[17];
+		snprintf(buffer, sizeof(buffer), "CA_HELI_PITCH_C%u", i);
+		_param_handles.pitch_curve[i] = param_find(buffer);
+	}
+
+	// Three-position switch motor speed params: low / mid / high
+	_param_handles.motor_speed[0] = param_find("CA_HELI_MOT_LO");
+	_param_handles.motor_speed[1] = param_find("CA_HELI_MOT_MD");
+	_param_handles.motor_speed[2] = param_find("CA_HELI_MOT_HI");
+
 	updateParams();
 }
 
@@ -74,6 +85,14 @@ void ActuatorEffectivenessHelicopterCoaxial::updateParams()
 		_geometry.swash_plate_servos[i].angle = math::radians(angle_deg);
 		param_get(_param_handles.swash_plate_servos[i].arm_length, &_geometry.swash_plate_servos[i].arm_length);
 		param_get(_param_handles.swash_plate_servos[i].trim, &_geometry.swash_plate_servos[i].trim);
+	}
+
+	for (int i = 0; i < NUM_CURVE_POINTS; ++i) {
+		param_get(_param_handles.pitch_curve[i], &_geometry.pitch_curve[i]);
+	}
+
+	for (int i = 0; i < 3; ++i) {
+		param_get(_param_handles.motor_speed[i], &_geometry.motor_speed[i]);
 	}
 
 	param_get(_param_handles.spoolup_time, &_geometry.spoolup_time);
@@ -106,13 +125,38 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 {
 	_saturation_flags = {};
 
-	// throttle/collective pitch curve
-	const float throttle = -control_sp(ControlAxis::THRUST_Z) * throttleSpoolupProgress();
+	const float spoolup_progress = throttleSpoolupProgress();
+
+	// Motor speed from 3-position switch (gear_switch):
+	//   SWITCH_POS_ON     (UP)     -> high speed  [2]
+	//   SWITCH_POS_MIDDLE (MIDDLE) -> mid speed   [1]
+	//   SWITCH_POS_OFF    (DOWN)   -> low speed   [0]
+	manual_control_switches_s switches{};
+
+	if (_manual_control_switches_sub.update(&switches)) {
+		if (switches.gear_switch == manual_control_switches_s::SWITCH_POS_ON) {
+			_motor_speed_idx = 2; // high
+		} else if (switches.gear_switch == manual_control_switches_s::SWITCH_POS_MIDDLE) {
+			_motor_speed_idx = 1; // mid
+		} else {
+			_motor_speed_idx = 0; // low (OFF or NONE)
+		}
+	}
+
+	const float motor_speed = _geometry.motor_speed[_motor_speed_idx] * spoolup_progress;
+
+	// Collective pitch from throttle (oil door) via pitch curve
+	// CA_HELI_PITCH_C* maps thrust demand [0,1] -> swashplate collective [-1,1]
+	const float collective_pitch = math::interpolateN(-control_sp(ControlAxis::THRUST_Z),
+				       _geometry.pitch_curve);
+
 	const float yaw = control_sp(ControlAxis::YAW);
 
-	// actuator mapping
-	actuator_sp(0) = throttle - yaw; // Clockwise
-	actuator_sp(1) = throttle + yaw; // Counter-clockwise
+	// Motor differential for yaw:
+	//   Motor 0 (CW):  reduce speed to yaw CCW, increase to yaw CW
+	//   Motor 1 (CCW): increase speed to yaw CCW, reduce to yaw CW
+	actuator_sp(0) = motor_speed - yaw; // Clockwise rotor
+	actuator_sp(1) = motor_speed + yaw; // Counter-clockwise rotor
 
 	// Saturation check for yaw
 	if ((actuator_sp(0) < actuator_min(0)) || (actuator_sp(1) > actuator_max(1))) {
@@ -122,12 +166,14 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 		setSaturationFlag(1.f, _saturation_flags.yaw_pos, _saturation_flags.yaw_neg);
 	}
 
+	// Swashplate servos: collective pitch + cyclic (roll/pitch)
 	for (int i = 0; i < _geometry.num_swash_plate_servos; i++) {
 		float roll_coeff = sinf(_geometry.swash_plate_servos[i].angle) * _geometry.swash_plate_servos[i].arm_length;
 		float pitch_coeff = cosf(_geometry.swash_plate_servos[i].angle) * _geometry.swash_plate_servos[i].arm_length;
 		actuator_sp(_first_swash_plate_servo_index + i) =
-			+ control_sp(ControlAxis::PITCH) * pitch_coeff
-			- control_sp(ControlAxis::ROLL) * roll_coeff
+			collective_pitch                              // collective: driven by throttle stick
+			+ control_sp(ControlAxis::PITCH) * pitch_coeff // longitudinal cyclic
+			- control_sp(ControlAxis::ROLL) * roll_coeff   // lateral cyclic
 			+ _geometry.swash_plate_servos[i].trim;
 
 		// Saturation check for roll & pitch

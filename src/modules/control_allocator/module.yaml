@@ -477,18 +477,6 @@ parameters:
             min: 0
             max: 10
             default: 1.0
-        CA_HELI_THR_C${i}:
-            description:
-                short: Throttle curve at position ${i}
-                long: |
-                  Defines the output throttle at the interval position ${i}.
-            type: float
-            decimal: 3
-            increment: 0.1
-            num_instances: 5
-            min: 0
-            max: 1
-            default: [1, 1, 1, 1, 1]
         CA_HELI_PITCH_C${i}:
             description:
                 short: Collective pitch curve at position ${i}
@@ -503,6 +491,42 @@ parameters:
             min: -1
             max: 1
             default: [-0.05, 0.0725, 0.2, 0.325, 0.45]
+        CA_HELI_MOT_LO:
+            description:
+                short: Motor speed low setting
+                long: |
+                  Motor throttle output when the gear switch is in the low (down) position.
+                  This controls rotor RPM at low speed setting.
+            type: float
+            decimal: 2
+            increment: 0.05
+            min: 0
+            max: 1
+            default: 0.5
+        CA_HELI_MOT_MD:
+            description:
+                short: Motor speed medium setting
+                long: |
+                  Motor throttle output when the 3-position switch is in the middle position.
+                  This controls rotor RPM at medium speed setting.
+            type: float
+            decimal: 2
+            increment: 0.05
+            min: 0
+            max: 1
+            default: 0.75
+        CA_HELI_MOT_HI:
+            description:
+                short: Motor speed high setting
+                long: |
+                  Motor throttle output when the 3-position switch is in the high (up) position.
+                  This controls rotor RPM at high speed setting.
+            type: float
+            decimal: 2
+            increment: 0.05
+            min: 0
+            max: 1
+            default: 1.0
         CA_HELI_YAW_CP_S:
           description:
             short: Scale for yaw compensation based on collective pitch

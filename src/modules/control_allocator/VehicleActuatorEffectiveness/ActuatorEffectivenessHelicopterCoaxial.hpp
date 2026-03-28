@@ -46,6 +46,7 @@ class ActuatorEffectivenessHelicopterCoaxial : public ModuleParams, public Actua
 public:
 
 	static constexpr int NUM_SWASH_PLATE_SERVOS_MAX = 4;
+	static constexpr int NUM_CURVE_POINTS = 5;
 
 	struct SwashPlateGeometry {
 		float angle;
@@ -56,6 +57,8 @@ public:
 	struct Geometry {
 		SwashPlateGeometry swash_plate_servos[NUM_SWASH_PLATE_SERVOS_MAX];
 		int32_t num_swash_plate_servos{0};
+		float motor_speed[3];                   // [0]=low, [1]=mid, [2]=high (CA_HELI_MOT_LO/MD/HI)
+		float pitch_curve[NUM_CURVE_POINTS];    // Collective pitch curve (CA_HELI_PITCH_C*)
 		float spoolup_time;
 	};
 
@@ -98,6 +101,8 @@ private:
 	struct ParamHandles {
 		ParamHandlesSwashPlate swash_plate_servos[NUM_SWASH_PLATE_SERVOS_MAX];
 		param_t num_swash_plate_servos;
+		param_t pitch_curve[NUM_CURVE_POINTS];  // CA_HELI_PITCH_C0..4
+		param_t motor_speed[3];                 // CA_HELI_MOT_LO, CA_HELI_MOT_MD, CA_HELI_MOT_HI
 		param_t spoolup_time;
 	};
 	ParamHandles _param_handles{};
@@ -113,4 +118,5 @@ private:
 	uint64_t _armed_time{0};
 
 	uORB::Subscription _manual_control_switches_sub{ORB_ID(manual_control_switches)};
+	int _motor_speed_idx{0}; // 0=low, 1=mid, 2=high, based on 3-position switch
 };

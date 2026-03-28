@@ -58,6 +58,7 @@ public:
 		SwashPlateGeometry swash_plate_servos[NUM_SWASH_PLATE_SERVOS_MAX];
 		int32_t num_swash_plate_servos{0};
 		float motor_speed[3];                   // [0]=low, [1]=mid, [2]=high (CA_HELI_MOT_LO/MD/HI)
+		float motor_speed_min;                  // Minimum motor speed (CA_HELI_MOT_MIN)
 		float pitch_curve[NUM_CURVE_POINTS];    // Collective pitch curve (CA_HELI_PITCH_C*)
 		float spoolup_time;
 	};
@@ -103,6 +104,7 @@ private:
 		param_t num_swash_plate_servos;
 		param_t pitch_curve[NUM_CURVE_POINTS];  // CA_HELI_PITCH_C0..4
 		param_t motor_speed[3];                 // CA_HELI_MOT_LO, CA_HELI_MOT_MD, CA_HELI_MOT_HI
+		param_t motor_speed_min;                // CA_HELI_MOT_MIN
 		param_t spoolup_time;
 	};
 	ParamHandles _param_handles{};

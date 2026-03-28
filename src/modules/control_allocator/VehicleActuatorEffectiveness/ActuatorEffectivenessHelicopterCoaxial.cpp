@@ -63,6 +63,7 @@ ActuatorEffectivenessHelicopterCoaxial::ActuatorEffectivenessHelicopterCoaxial(M
 	_param_handles.motor_speed[0] = param_find("CA_HELI_MOT_LO");
 	_param_handles.motor_speed[1] = param_find("CA_HELI_MOT_MD");
 	_param_handles.motor_speed[2] = param_find("CA_HELI_MOT_HI");
+	_param_handles.motor_speed_min = param_find("CA_HELI_MOT_MIN");
 
 	updateParams();
 }
@@ -94,6 +95,8 @@ void ActuatorEffectivenessHelicopterCoaxial::updateParams()
 	for (int i = 0; i < 3; ++i) {
 		param_get(_param_handles.motor_speed[i], &_geometry.motor_speed[i]);
 	}
+
+	param_get(_param_handles.motor_speed_min, &_geometry.motor_speed_min);
 
 	param_get(_param_handles.spoolup_time, &_geometry.spoolup_time);
 }
@@ -155,8 +158,11 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 	// Motor differential for yaw:
 	//   Motor 0 (CW):  reduce speed to yaw CCW, increase to yaw CW
 	//   Motor 1 (CCW): increase speed to yaw CCW, reduce to yaw CW
-	actuator_sp(0) = motor_speed - yaw; // Clockwise rotor
-	actuator_sp(1) = motor_speed + yaw; // Counter-clockwise rotor
+	// Clamp yaw authority so neither motor drops below CA_HELI_MOT_MIN
+	const float yaw_max = motor_speed - _geometry.motor_speed_min;
+	const float yaw_clamped = math::constrain(yaw, -yaw_max, yaw_max);
+	actuator_sp(0) = motor_speed - yaw_clamped; // Clockwise rotor
+	actuator_sp(1) = motor_speed + yaw_clamped; // Counter-clockwise rotor
 
 	// Saturation check for yaw
 	if ((actuator_sp(0) < actuator_min(0)) || (actuator_sp(1) > actuator_max(1))) {
@@ -164,6 +170,10 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 
 	} else if ((actuator_sp(0) > actuator_max(0)) || (actuator_sp(1) < actuator_min(1))) {
 		setSaturationFlag(1.f, _saturation_flags.yaw_pos, _saturation_flags.yaw_neg);
+
+	} else if (fabsf(yaw) > fabsf(yaw_clamped) + 1e-4f) {
+		// yaw was clamped by CA_HELI_MOT_MIN — report saturation to rate controller
+		setSaturationFlag(yaw > 0.f ? 1.f : -1.f, _saturation_flags.yaw_pos, _saturation_flags.yaw_neg);
 	}
 
 	// Swashplate servos: collective pitch + cyclic (roll/pitch)

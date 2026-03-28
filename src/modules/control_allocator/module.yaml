@@ -527,6 +527,20 @@ parameters:
             min: 0
             max: 1
             default: 1.0
+        CA_HELI_MOT_MIN:
+            description:
+                short: Minimum motor speed for yaw authority
+                long: |
+                  Minimum motor throttle output allowed for either rotor.
+                  Prevents a rotor from stopping when large yaw commands are applied.
+                  The yaw differential (motor_speed ± yaw) is clamped so that neither
+                  motor goes below this value.
+            type: float
+            decimal: 2
+            increment: 0.01
+            min: 0
+            max: 1
+            default: 0.1
         CA_HELI_YAW_CP_S:
           description:
             short: Scale for yaw compensation based on collective pitch

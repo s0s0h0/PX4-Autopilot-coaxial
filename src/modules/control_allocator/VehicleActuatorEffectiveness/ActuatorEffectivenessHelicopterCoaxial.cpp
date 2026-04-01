@@ -136,7 +136,7 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 	//   SWITCH_POS_OFF    (DOWN)   -> low speed   [0]
 	manual_control_switches_s switches{};
 
-	if (_manual_control_switches_sub.update(&switches)) {
+	if (_manual_control_switches_sub.copy(&switches)) {
 		if (switches.gear_switch == manual_control_switches_s::SWITCH_POS_ON) {
 			_motor_speed_idx = 2; // high
 		} else if (switches.gear_switch == manual_control_switches_s::SWITCH_POS_MIDDLE) {

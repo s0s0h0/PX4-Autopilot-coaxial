@@ -35,10 +35,16 @@
 
 #include "FunctionProviderBase.hpp"
 
+#include <mathlib/mathlib.h>
 #include <uORB/topics/gripper.h>
 
 /**
- * @brief Function: Gripper (Used for actuating a Gripper)
+ * @brief Function: Gripper output driver
+ *
+ * Reads the gripper uORB topic and maps it to a normalised servo value [-1, 1]:
+ *   - If normalized_position is finite, use it directly (set by claw_controller)
+ *   - COMMAND_GRAB    -> +1.0  (fallback for payload_deliverer compatibility)
+ *   - COMMAND_RELEASE -> -1.0  (fallback)
  */
 class FunctionGripper : public FunctionProviderBase
 {
@@ -51,12 +57,14 @@ public:
 		gripper_s gripper;
 
 		if (_gripper_sub.update(&gripper)) {
-			if (gripper.command == gripper_s::COMMAND_RELEASE) {
-				_data = -1.f; // Minimum command for release
+			if (PX4_ISFINITE(gripper.normalized_position)) {
+				_data = math::constrain(gripper.normalized_position, -1.f, 1.f);
 
 			} else if (gripper.command == gripper_s::COMMAND_GRAB) {
-				_data = 1.f; // Maximum command for grab
+				_data = 1.f;
 
+			} else if (gripper.command == gripper_s::COMMAND_RELEASE) {
+				_data = -1.f;
 			}
 		}
 	}

@@ -47,7 +47,9 @@
  *   CLAW_FLY_POS   – claw position during normal flight (GRABBING / RELEASING transit)
  *   CLAW_LAND_POS  – claw position used as landing support leg
  *
- * Publishes: gripper uORB topic (consumed by FunctionGripper -> PWM_MAIN_FUNC8=Gripper)
+ * RC input: uses RC_MAP_AUX1 (QGC RC Setup page). The AUX1 mapped channel
+ * value is read from rc_channels.function[FUNCTION_AUX_1].
+ * Threshold: value >= CLAW_RC_THR -> grab, < CLAW_RC_THR -> release.
  */
 
 #pragma once
@@ -110,7 +112,6 @@ private:
 
 	// ── Parameters ─────────────────────────────────────────────────────────
 	DEFINE_PARAMETERS(
-		(ParamInt<px4::params::CLAW_RC_CHAN>)    _param_rc_chan,
 		(ParamFloat<px4::params::CLAW_RC_THR>)   _param_rc_thr,
 		(ParamFloat<px4::params::CLAW_GRAB_TO>)  _param_grab_timeout_s,
 		(ParamFloat<px4::params::CLAW_REL_TO>)   _param_rel_timeout_s,

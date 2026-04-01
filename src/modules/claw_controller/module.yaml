@@ -4,14 +4,6 @@ parameters:
     - group: Claw Controller
       definitions:
 
-        CLAW_RC_CHAN:
-            description:
-                short: RC channel for claw grab/release switch (1-based)
-            type: int32
-            min: 1
-            max: 18
-            default: 7
-
         CLAW_RC_THR:
             description:
                 short: RC threshold for grab position [-1, 1]

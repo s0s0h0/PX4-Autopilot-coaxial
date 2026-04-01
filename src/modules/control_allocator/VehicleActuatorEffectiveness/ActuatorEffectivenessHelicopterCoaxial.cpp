@@ -134,16 +134,16 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 	//   SWITCH_POS_ON     (UP)     -> high speed  [2]
 	//   SWITCH_POS_MIDDLE (MIDDLE) -> mid speed   [1]
 	//   SWITCH_POS_OFF    (DOWN)   -> low speed   [0]
-	manual_control_switches_s switches{};
+	// _manual_control_switches is a member variable that retains the last known
+	// value, so _motor_speed_idx stays current even when no new message arrives.
+	_manual_control_switches_sub.update(&_manual_control_switches);
 
-	if (_manual_control_switches_sub.copy(&switches)) {
-		if (switches.gear_switch == manual_control_switches_s::SWITCH_POS_ON) {
-			_motor_speed_idx = 2; // high
-		} else if (switches.gear_switch == manual_control_switches_s::SWITCH_POS_MIDDLE) {
-			_motor_speed_idx = 1; // mid
-		} else {
-			_motor_speed_idx = 0; // low (OFF or NONE)
-		}
+	if (_manual_control_switches.gear_switch == manual_control_switches_s::SWITCH_POS_ON) {
+		_motor_speed_idx = 2; // high
+	} else if (_manual_control_switches.gear_switch == manual_control_switches_s::SWITCH_POS_MIDDLE) {
+		_motor_speed_idx = 1; // mid
+	} else {
+		_motor_speed_idx = 0; // low (OFF or NONE)
 	}
 
 	const float motor_speed = _geometry.motor_speed[_motor_speed_idx] * spoolup_progress;

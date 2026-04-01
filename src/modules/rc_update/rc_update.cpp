@@ -626,7 +626,7 @@ void RCUpdate::UpdateManualSwitches(const hrt_abstime &timestamp_sample)
 	switches.termination_switch = getRCSwitchOnOffPosition(rc_channels_s::FUNCTION_TERMINATION, .75f);
 	switches.arm_switch = getRCSwitchOnOffPosition(rc_channels_s::FUNCTION_ARMSWITCH, _param_rc_armswitch_th.get());
 	switches.transition_switch = getRCSwitchOnOffPosition(rc_channels_s::FUNCTION_TRANSITION, _param_rc_trans_th.get());
-	switches.gear_switch = getRCSwitchOnOffPosition(rc_channels_s::FUNCTION_GEAR, _param_rc_gear_th.get());
+	switches.gear_switch = getRCSwitch3WayPosition(rc_channels_s::FUNCTION_GEAR, _param_rc_gear_th.get(), 0.25f);
 	switches.engage_main_motor_switch =
 		getRCSwitchOnOffPosition(rc_channels_s::FUNCTION_ENGAGE_MAIN_MOTOR, _param_rc_eng_mot_th.get());
 #if defined(ATL_MANTIS_RC_INPUT_HACKS)

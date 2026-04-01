@@ -113,13 +113,10 @@ void ClawController::Run()
 		return;
 	}
 
-	const int chan_idx = _param_rc_chan.get() - 1;
+	// Read the channel assigned to AUX1 via RC_MAP_AUX1 in QGC
+	const float aux1_val = rc.channels[(int)rc_channels_s::FUNCTION_AUX_1];
 
-	if (chan_idx < 0 || chan_idx >= (int)(sizeof(rc.channels) / sizeof(rc.channels[0]))) {
-		return;
-	}
-
-	const bool want_grab = (rc.channels[chan_idx] >= _param_rc_thr.get());
+	const bool want_grab = (aux1_val >= _param_rc_thr.get());
 
 	const hrt_abstime now         = hrt_absolute_time();
 	const hrt_abstime elapsed_us  = now - _state_entry_time;
@@ -193,7 +190,8 @@ int ClawController::print_status()
 {
 	PX4_INFO("State      : %s", state_str());
 	PX4_INFO("Landed     : %s", _landed ? "yes" : "no");
-	PX4_INFO("RC channel : %d", (int)_param_rc_chan.get());
+	PX4_INFO("RC input   : AUX1 (set via RC_MAP_AUX1)");
+	PX4_INFO("RC thr     : %.2f", (double)_param_rc_thr.get());
 	PX4_INFO("Grab pos   : %.2f", (double)_param_grab_pos.get());
 	PX4_INFO("Release pos: %.2f", (double)_param_rel_pos.get());
 	PX4_INFO("Fly pos    : %.2f", (double)_param_fly_pos.get());

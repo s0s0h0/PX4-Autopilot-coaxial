@@ -120,5 +120,6 @@ private:
 	uint64_t _armed_time{0};
 
 	uORB::Subscription _manual_control_switches_sub{ORB_ID(manual_control_switches)};
+	manual_control_switches_s _manual_control_switches{};
 	int _motor_speed_idx{0}; // 0=low, 1=mid, 2=high, based on 3-position switch
 };

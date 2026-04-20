@@ -36,42 +36,72 @@
 #include "FunctionProviderBase.hpp"
 
 #include <mathlib/mathlib.h>
+#include <lib/mathlib/math/filter/AlphaFilter.hpp>
 #include <uORB/topics/gripper.h>
+#include <uORB/topics/manual_control_setpoint.h>
+#include <drivers/drv_hrt.h>
 
 /**
  * @brief Function: Gripper output driver
  *
- * Reads the gripper uORB topic and maps it to a normalised servo value [-1, 1]:
- *   - If normalized_position is finite, use it directly (set by claw_controller)
- *   - COMMAND_GRAB    -> +1.0  (fallback for payload_deliverer compatibility)
- *   - COMMAND_RELEASE -> -1.0  (fallback)
+ * Priority (highest to lowest):
+ *   1. manual_control_setpoint.aux1 is valid (RC signal present) -> direct analog passthrough,
+ *      low-pass filtered at 5 Hz to smooth 50/100 Hz RC step artifacts
+ *   2. gripper.normalized_position is finite -> analog command from software
+ *   3. gripper.command GRAB/RELEASE          -> +1.0 / -1.0 (payload_deliverer compatibility)
  */
 class FunctionGripper : public FunctionProviderBase
 {
 public:
-	FunctionGripper() = default;
+	FunctionGripper()
+	{
+		_filter.setCutoffFreq(5.f);
+		_filter.reset(-1.f);
+	}
+
 	static FunctionProviderBase *allocate(const Context &context) { return new FunctionGripper(); }
 
 	void update() override
 	{
+		const hrt_abstime now = hrt_absolute_time();
+		const float dt = math::constrain((_last_update_us > 0) ? (now - _last_update_us) * 1e-6f : 0.004f,
+						 0.001f, 0.1f);
+		_last_update_us = now;
+
+		// Try RC aux1 passthrough first (smooth analog from RC transmitter)
+		manual_control_setpoint_s mcs;
+
+		if (_mcs_sub.update(&mcs) && mcs.valid && PX4_ISFINITE(mcs.aux1)) {
+			_data = _filter.update(math::constrain(mcs.aux1, -1.f, 1.f), dt);
+			return;
+		}
+
+		// Fall back to gripper topic (software commands from payload_deliverer etc.)
 		gripper_s gripper;
 
 		if (_gripper_sub.update(&gripper)) {
+			float target;
+
 			if (PX4_ISFINITE(gripper.normalized_position)) {
-				_data = math::constrain(gripper.normalized_position, -1.f, 1.f);
+				target = math::constrain(gripper.normalized_position, -1.f, 1.f);
 
 			} else if (gripper.command == gripper_s::COMMAND_GRAB) {
-				_data = 1.f;
+				target = 1.f;
 
-			} else if (gripper.command == gripper_s::COMMAND_RELEASE) {
-				_data = -1.f;
+			} else {
+				target = -1.f;
 			}
+
+			_data = _filter.update(target, dt);
 		}
 	}
 
 	float value(OutputFunction func) override { return _data; }
 
 private:
+	uORB::Subscription _mcs_sub{ORB_ID(manual_control_setpoint)};
 	uORB::Subscription _gripper_sub{ORB_ID(gripper)};
+	AlphaFilter<float> _filter;
+	hrt_abstime _last_update_us{0};
 	float _data{-1.f};
 };

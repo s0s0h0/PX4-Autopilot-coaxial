@@ -130,68 +130,25 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 {
 	_saturation_flags = {};
 
-	// Update arm state and reset collective filter on new arm
-	throttleSpoolupProgress();
+	const float spoolup_progress = throttleSpoolupProgress();
 
 	// Motor speed from 3-position switch (gear_switch):
-	//   SWITCH_POS_ON     (UP)     -> CA_HELI_MOT_HI, spoolup on engage
-	//   SWITCH_POS_MIDDLE (MIDDLE) -> CA_HELI_MOT_MD, spoolup on engage
-	//   SWITCH_POS_OFF    (DOWN)   -> CA_HELI_MOT_LO (set to 0 for full stop),
-	//                                 also clears the post-arm engage lock
-	//   SWITCH_POS_NONE            -> 0 (switch not assigned / no message yet)
-	//
-	// Safety: after arming, motors are locked out until the switch visits OFF.
-	// This prevents accidental spin-up if the switch was already at MID/HI when armed.
+	//   SWITCH_POS_ON     (UP)     -> high speed  [2]
+	//   SWITCH_POS_MIDDLE (MIDDLE) -> mid speed   [1]
+	//   SWITCH_POS_OFF    (DOWN)   -> low speed   [0]
+	// _manual_control_switches is a member variable that retains the last known
+	// value, so _motor_speed_idx stays current even when no new message arrives.
 	_manual_control_switches_sub.update(&_manual_control_switches);
 
-	bool new_gear_active;
-
 	if (_manual_control_switches.gear_switch == manual_control_switches_s::SWITCH_POS_ON) {
-		_motor_speed_idx = 2;
-		new_gear_active = true;
-
+		_motor_speed_idx = 2; // high
 	} else if (_manual_control_switches.gear_switch == manual_control_switches_s::SWITCH_POS_MIDDLE) {
-		_motor_speed_idx = 1;
-		new_gear_active = true;
-
-	} else if (_manual_control_switches.gear_switch == manual_control_switches_s::SWITCH_POS_OFF) {
-		_motor_speed_idx = 0;
-		new_gear_active = false;
-		_require_gear_cycle = false; // switch visited OFF — post-arm lock cleared
-
+		_motor_speed_idx = 1; // mid
 	} else {
-		// SWITCH_POS_NONE: switch not mapped or no RC message yet
-		new_gear_active = false;
+		_motor_speed_idx = 0; // low (OFF or NONE)
 	}
 
-	// Start spoolup timer only when transitioning from stopped to active,
-	// and only after the post-arm OFF requirement has been satisfied.
-	if (new_gear_active && !_gear_active && !_require_gear_cycle) {
-		_gear_active_time = hrt_absolute_time();
-	}
-
-	_gear_active = new_gear_active && !_require_gear_cycle;
-
-	float motor_speed;
-
-	if (!_armed) {
-		motor_speed = 0.f;
-
-	} else if (!_gear_active) {
-		// Switch at OFF (or locked after arm): output CA_HELI_MOT_LO directly.
-		// Set CA_HELI_MOT_LO = 0 to keep motors fully stopped at this position.
-		motor_speed = (_manual_control_switches.gear_switch == manual_control_switches_s::SWITCH_POS_OFF
-			       && !_require_gear_cycle)
-			      ? _geometry.motor_speed[0]
-			      : 0.f;
-
-	} else {
-		const float time_since_gear = (hrt_absolute_time() - _gear_active_time) * 1e-6f;
-		const float spoolup_progress = (_geometry.spoolup_time > 0.f)
-					       ? math::constrain(time_since_gear / _geometry.spoolup_time, 0.f, 1.f)
-					       : 1.f;
-		motor_speed = _geometry.motor_speed[_motor_speed_idx] * spoolup_progress;
-	}
+	const float motor_speed = _geometry.motor_speed[_motor_speed_idx] * spoolup_progress;
 
 	// Collective pitch: throttle stick -> pitch curve -> low-pass filtered output
 	const hrt_abstime now = hrt_absolute_time();
@@ -212,8 +169,8 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 	// Clamp yaw authority so neither motor drops below CA_HELI_MOT_MIN
 	const float yaw_max = math::max(0.f, motor_speed - _geometry.motor_speed_min);
 	const float yaw_clamped = math::constrain(yaw, -yaw_max, yaw_max);
-	actuator_sp(0) = motor_speed - yaw_clamped; // Clockwise rotor
-	actuator_sp(1) = motor_speed + yaw_clamped; // Counter-clockwise rotor
+	actuator_sp(0) = motor_speed + yaw_clamped; // Clockwise rotor
+	actuator_sp(1) = motor_speed - yaw_clamped; // Counter-clockwise rotor
 
 	// Saturation check for yaw
 	if ((actuator_sp(0) < actuator_min(0)) || (actuator_sp(1) > actuator_max(1))) {
@@ -261,18 +218,11 @@ float ActuatorEffectivenessHelicopterCoaxial::throttleSpoolupProgress()
 		if (newly_armed) {
 			_collective_pitch_filter.reset(0.f);
 			_last_update_us = hrt_absolute_time();
-			_gear_active = false;
-			_gear_active_time = 0;
-			_require_gear_cycle = true; // block motors until switch visits OFF
 		}
 	}
 
-	// Return value kept for API compatibility but no longer used for motor speed.
-	// Motor spoolup is now gear-switch-driven (see updateSetpoint).
-	const float time_since_arming = (hrt_absolute_time() - _armed_time) * 1e-6f;
-	const float spoolup_progress = (_geometry.spoolup_time > 0.f)
-				       ? time_since_arming / _geometry.spoolup_time
-				       : 1.f;
+	const float time_since_arming = (hrt_absolute_time() - _armed_time) / 1e6f;
+	const float spoolup_progress = time_since_arming / _geometry.spoolup_time;
 
 	if (_armed && spoolup_progress < 1.f) {
 		return spoolup_progress;

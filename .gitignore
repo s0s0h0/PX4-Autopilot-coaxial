@@ -115,4 +115,3 @@ _emscripten_sdk/
 
 # virtual Python environment
 .venv
-Tools/setup/*.tar.xz*

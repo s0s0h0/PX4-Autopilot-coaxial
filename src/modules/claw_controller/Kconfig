@@ -1,0 +1,5 @@
+menuconfig MODULES_CLAW_CONTROLLER
+	bool "claw_controller"
+	default n
+	---help---
+		Enable claw_controller module (RC-driven mechanical gripper via main8)

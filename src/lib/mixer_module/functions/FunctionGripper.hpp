@@ -37,18 +37,13 @@
 
 #include <mathlib/mathlib.h>
 #include <lib/mathlib/math/filter/AlphaFilter.hpp>
-#include <uORB/topics/gripper.h>
 #include <uORB/topics/manual_control_setpoint.h>
 #include <drivers/drv_hrt.h>
 
 /**
  * @brief Function: Gripper output driver
  *
- * Priority (highest to lowest):
- *   1. manual_control_setpoint.aux1 is valid (RC signal present) -> direct analog passthrough,
- *      low-pass filtered at 5 Hz to smooth 50/100 Hz RC step artifacts
- *   2. gripper.normalized_position is finite -> analog command from software
- *   3. gripper.command GRAB/RELEASE          -> +1.0 / -1.0 (payload_deliverer compatibility)
+ * Direct AUX1 passthrough, low-pass filtered at 5 Hz to smooth RC step artifacts.
  */
 class FunctionGripper : public FunctionProviderBase
 {
@@ -68,31 +63,10 @@ public:
 						 0.001f, 0.1f);
 		_last_update_us = now;
 
-		// Try RC aux1 passthrough first (smooth analog from RC transmitter)
 		manual_control_setpoint_s mcs;
 
 		if (_mcs_sub.update(&mcs) && mcs.valid && PX4_ISFINITE(mcs.aux1)) {
 			_data = _filter.update(math::constrain(mcs.aux1, -1.f, 1.f), dt);
-			return;
-		}
-
-		// Fall back to gripper topic (software commands from payload_deliverer etc.)
-		gripper_s gripper;
-
-		if (_gripper_sub.update(&gripper)) {
-			float target;
-
-			if (PX4_ISFINITE(gripper.normalized_position)) {
-				target = math::constrain(gripper.normalized_position, -1.f, 1.f);
-
-			} else if (gripper.command == gripper_s::COMMAND_GRAB) {
-				target = 1.f;
-
-			} else {
-				target = -1.f;
-			}
-
-			_data = _filter.update(target, dt);
 		}
 	}
 
@@ -100,7 +74,6 @@ public:
 
 private:
 	uORB::Subscription _mcs_sub{ORB_ID(manual_control_setpoint)};
-	uORB::Subscription _gripper_sub{ORB_ID(gripper)};
 	AlphaFilter<float> _filter;
 	hrt_abstime _last_update_us{0};
 	float _data{-1.f};

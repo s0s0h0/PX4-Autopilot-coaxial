@@ -125,6 +125,10 @@ private:
 	manual_control_switches_s _manual_control_switches{};
 	int _motor_speed_idx{0}; // 0=low, 1=mid, 2=high, based on 3-position switch
 
+	bool _gear_active{false};        // true when motors are running under gear control
+	uint64_t _gear_active_time{0};   // time when gear last transitioned from off to active
+	bool _require_gear_cycle{false}; // after arm, block motors until switch visits OFF
+
 	AlphaFilter<float> _collective_pitch_filter;
 	hrt_abstime _last_update_us{0};
 };

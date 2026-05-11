@@ -11,5 +11,3 @@
 
 # DShot telemetry is always on UART7
 # dshot telemetry -d /dev/ttyS5
-
-claw_controller start

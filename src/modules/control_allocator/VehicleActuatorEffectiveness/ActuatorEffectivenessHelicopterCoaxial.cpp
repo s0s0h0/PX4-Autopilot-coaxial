@@ -33,7 +33,6 @@
 
 #include "ActuatorEffectivenessHelicopterCoaxial.hpp"
 #include <lib/mathlib/mathlib.h>
-#include <px4_platform_common/defines.h>
 
 using namespace matrix;
 using namespace time_literals;
@@ -41,7 +40,6 @@ using namespace time_literals;
 ActuatorEffectivenessHelicopterCoaxial::ActuatorEffectivenessHelicopterCoaxial(ModuleParams *parent)
 	: ModuleParams(parent)
 {
-	_collective_pitch_filter.setCutoffFreq(5.f); // 5 Hz cutoff ~ 32ms time constant, smooths stick jitter
 	for (int i = 0; i < NUM_SWASH_PLATE_SERVOS_MAX; ++i) {
 		char buffer[17];
 		snprintf(buffer, sizeof(buffer), "CA_SP0_ANG%u", i);
@@ -150,15 +148,10 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 
 	const float motor_speed = _geometry.motor_speed[_motor_speed_idx] * spoolup_progress;
 
-	// Collective pitch: throttle stick -> pitch curve -> low-pass filtered output
-	const hrt_abstime now = hrt_absolute_time();
-	const float dt = math::constrain((_last_update_us > 0) ? (now - _last_update_us) * 1e-6f : 0.004f,
-					 0.001f, 0.1f);
-	_last_update_us = now;
-
-	const float collective_pitch_raw = math::interpolateN(-control_sp(ControlAxis::THRUST_Z),
-					   _geometry.pitch_curve);
-	const float collective_pitch = _collective_pitch_filter.update(collective_pitch_raw, dt);
+	// Collective pitch from throttle (oil door) via pitch curve
+	// CA_HELI_PITCH_C* maps thrust demand [0,1] -> swashplate collective [-1,1]
+	const float collective_pitch = math::interpolateN(-control_sp(ControlAxis::THRUST_Z),
+				       _geometry.pitch_curve);
 
 	const float yaw = control_sp(ControlAxis::YAW);
 
@@ -211,14 +204,8 @@ float ActuatorEffectivenessHelicopterCoaxial::throttleSpoolupProgress()
 	vehicle_status_s vehicle_status;
 
 	if (_vehicle_status_sub.update(&vehicle_status)) {
-		const bool newly_armed = !_armed && (vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED);
 		_armed = vehicle_status.arming_state == vehicle_status_s::ARMING_STATE_ARMED;
 		_armed_time = vehicle_status.armed_time;
-
-		if (newly_armed) {
-			_collective_pitch_filter.reset(0.f);
-			_last_update_us = hrt_absolute_time();
-		}
 	}
 
 	const float time_since_arming = (hrt_absolute_time() - _armed_time) / 1e6f;

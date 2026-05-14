@@ -64,6 +64,8 @@ ActuatorEffectivenessHelicopterCoaxial::ActuatorEffectivenessHelicopterCoaxial(M
 	_param_handles.motor_speed[1] = param_find("CA_HELI_MOT_MD");
 	_param_handles.motor_speed[2] = param_find("CA_HELI_MOT_HI");
 	_param_handles.motor_speed_min = param_find("CA_HELI_MOT_MIN");
+	_param_handles.motor_speed_max = param_find("CA_HELI_MOT_MAX");
+	_param_handles.ccw_bias        = param_find("CA_HELI_CCW_BIAS");
 
 	updateParams();
 }
@@ -97,6 +99,8 @@ void ActuatorEffectivenessHelicopterCoaxial::updateParams()
 	}
 
 	param_get(_param_handles.motor_speed_min, &_geometry.motor_speed_min);
+	param_get(_param_handles.motor_speed_max, &_geometry.motor_speed_max);
+	param_get(_param_handles.ccw_bias,        &_geometry.ccw_bias);
 
 	param_get(_param_handles.spoolup_time, &_geometry.spoolup_time);
 }
@@ -155,15 +159,21 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 
 	const float yaw = control_sp(ControlAxis::YAW);
 
-	// const float yaw_trim = 0.03f; // to prevent fuselage rotating counterclockwise
-	// Motor differential for yaw:
-	//   Motor 0 (CW):  reduce speed to yaw CCW, increase to yaw CW
-	//   Motor 1 (CCW): increase speed to yaw CCW, reduce to yaw CW
-	// Clamp yaw authority so neither motor drops below CA_HELI_MOT_MIN
-	const float yaw_max = math::max(0.f, motor_speed - _geometry.motor_speed_min);
+	// Symmetric yaw differential: both motors deviate equally from motor_speed.
+	//   CW  motor (0): motor_speed - yaw_delta
+	//   CCW motor (1): motor_speed + yaw_delta + ccw_bias
+	// Clamp delta so CW stays >= motor_speed_min and CCW stays <= motor_speed_max.
+	const float yaw_max_lo = math::max(0.f, motor_speed - _geometry.motor_speed_min);
+	const float yaw_max_hi = math::max(0.f, _geometry.motor_speed_max - motor_speed);
+	const float yaw_max    = math::min(yaw_max_lo, yaw_max_hi);
 	const float yaw_clamped = math::constrain(yaw, -yaw_max, yaw_max);
-	actuator_sp(0) = motor_speed + yaw_clamped; // Clockwise rotor
-	actuator_sp(1) = motor_speed - yaw_clamped; // Counter-clockwise rotor
+
+	// ccw_bias only applies when motors are running; zero motor_speed means motors off
+	const float ccw_bias = (motor_speed > 0.f) ? _geometry.ccw_bias : 0.f;
+	actuator_sp(0) = math::constrain(motor_speed - yaw_clamped,
+	                                 0.f, _geometry.motor_speed_max); // Clockwise rotor
+	actuator_sp(1) = math::constrain(motor_speed + yaw_clamped + ccw_bias,
+	                                 0.f, _geometry.motor_speed_max); // Counter-clockwise rotor
 
 	// Saturation check for yaw
 	if ((actuator_sp(0) < actuator_min(0)) || (actuator_sp(1) > actuator_max(1))) {
@@ -173,7 +183,7 @@ void ActuatorEffectivenessHelicopterCoaxial::updateSetpoint(const matrix::Vector
 		setSaturationFlag(1.f, _saturation_flags.yaw_pos, _saturation_flags.yaw_neg);
 
 	} else if (fabsf(yaw) > fabsf(yaw_clamped) + 1e-4f) {
-		// yaw was clamped by CA_HELI_MOT_MIN — report saturation to rate controller
+		// yaw was clamped by motor speed limits — report saturation to rate controller
 		setSaturationFlag(yaw > 0.f ? 1.f : -1.f, _saturation_flags.yaw_pos, _saturation_flags.yaw_neg);
 	}
 

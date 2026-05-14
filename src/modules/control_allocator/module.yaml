@@ -541,6 +541,33 @@ parameters:
             min: 0
             max: 1
             default: 0.1
+        CA_HELI_MOT_MAX:
+            description:
+                short: Maximum motor speed for yaw authority
+                long: |
+                  Maximum motor throttle output allowed for either rotor.
+                  The yaw differential (motor_speed ± yaw) is clamped so that neither
+                  motor exceeds this value.
+            type: float
+            decimal: 2
+            increment: 0.01
+            min: 0
+            max: 1
+            default: 1.0
+        CA_HELI_CCW_BIAS:
+            description:
+                short: CCW rotor speed bias
+                long: |
+                  Constant offset added to the counter-clockwise rotor speed command.
+                  Use this to compensate for the natural torque imbalance between the two
+                  rotors so that the aircraft does not yaw when both motors are commanded
+                  to the same speed.
+            type: float
+            decimal: 3
+            increment: 0.005
+            min: -0.5
+            max: 0.5
+            default: 0.0
         CA_HELI_YAW_CP_S:
           description:
             short: Scale for yaw compensation based on collective pitch

@@ -59,6 +59,8 @@ public:
 		int32_t num_swash_plate_servos{0};
 		float motor_speed[3];                   // [0]=low, [1]=mid, [2]=high (CA_HELI_MOT_LO/MD/HI)
 		float motor_speed_min;                  // Minimum motor speed (CA_HELI_MOT_MIN)
+		float motor_speed_max;                  // Maximum motor speed (CA_HELI_MOT_MAX)
+		float ccw_bias;                         // CCW rotor bias (CA_HELI_CCW_BIAS)
 		float pitch_curve[NUM_CURVE_POINTS];    // Collective pitch curve (CA_HELI_PITCH_C*)
 		float spoolup_time;
 	};
@@ -105,6 +107,8 @@ private:
 		param_t pitch_curve[NUM_CURVE_POINTS];  // CA_HELI_PITCH_C0..4
 		param_t motor_speed[3];                 // CA_HELI_MOT_LO, CA_HELI_MOT_MD, CA_HELI_MOT_HI
 		param_t motor_speed_min;                // CA_HELI_MOT_MIN
+		param_t motor_speed_max;                // CA_HELI_MOT_MAX
+		param_t ccw_bias;                       // CA_HELI_CCW_BIAS
 		param_t spoolup_time;
 	};
 	ParamHandles _param_handles{};
